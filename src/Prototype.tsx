@@ -1,5 +1,4 @@
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MobileScroll } from "./mobile";
 
 type Fruit = "blueberry" | "strawberry" | "peach" | "grape" | "lemon" | "apple";
 type Special = "row" | "column" | "flower";
@@ -318,7 +317,7 @@ export default function Prototype() {
   if (view === "map") return <LevelMap unlocked={unlocked} bestScores={bestScores} onOpenLevel={openLevel} />;
 
   return (
-    <MobileScroll className="app-screen cloud-scroll">
+    <div className="native-scroll app-screen cloud-scroll">
       <main className="garden-game" aria-label="云海果乐园三消游戏">
         <img className="scene-background" src={`${ASSET_BASE}backgrounds/sky-ocean-clean.png`} alt="" />
         <header className="game-hud" aria-label="当前关卡信息"><button className="hud-back" onClick={() => setView("map")} aria-label="返回关卡地图"><img src={`${ASSET_BASE}ui/back-button.png`} alt="" /></button><img className="hud-level-card" src={`${ASSET_BASE}ui/level-card-empty.png`} alt="" /><div className="hud-level-copy"><strong>第 {level.id} 关</strong><span>剩余 {moves} 步</span></div><section className="hud-mission"><img className="hud-mission-card" src={`${ASSET_BASE}ui/mission-card-empty.png`} alt="" /><img className="hud-mission-ribbon" src={`${ASSET_BASE}ui/mission-ribbon.png`} alt="" /><b>关卡目标</b><div className="live-targets"><span><img src={`${ASSET_BASE}tiles/foam.png`} alt="" />{targetValues.foam}/{level.targets[1].count}</span><span><img src={`${ASSET_BASE}tiles/strawberry.png`} alt="" />{targetValues.strawberry}/{level.targets[0].count}</span></div></section><img className="hud-whale" src={`${ASSET_BASE}ui/whale-bubble.png`} alt="云海小鲸鱼" /></header>
@@ -346,21 +345,21 @@ export default function Prototype() {
         {showPause && <Modal title="云海暂歇" onClose={() => setShowPause(false)}><p>第 {level.id} 关进行中，已经获得 {score} 分。</p><button onClick={() => { audioEnabled.current = !audioEnabled.current; setMessage(audioEnabled.current ? "声音已开启" : "声音已关闭"); }}>切换声音</button><button onClick={() => { setShowPause(false); resetLevel(); }}>重新开始</button><button onClick={() => { setShowPause(false); setView("map"); }}>返回关卡地图</button></Modal>}
         {showResult && <Result kind={showResult} stars={stars} score={score} onRetry={() => resetLevel()} onNext={() => { if (levelIndex < LEVELS.length - 1) setLevelIndex((value) => value + 1); else { setShowResult(null); setView("map"); } }} />}
       </main>
-    </MobileScroll>
+    </div>
   );
 }
 
 function LevelMap({ unlocked, bestScores, onOpenLevel }: { unlocked: number; bestScores: Record<number, number>; onOpenLevel: (index: number) => void }) {
   const [notice, setNotice] = useState("");
   const announce = (text: string) => { setNotice(text); window.setTimeout(() => setNotice(""), 1800); };
-  return <MobileScroll className="app-screen cloud-scroll"><main className="level-map-screen" aria-label="云海果乐园关卡地图">
+  return <div className="native-scroll app-screen cloud-scroll"><main className="level-map-screen" aria-label="云海果乐园关卡地图">
     <MapScenery />
     <header className="map-topbar"><div><b>云海果乐园</b><small>完成关卡，点亮下一座果岛</small></div><button onClick={() => announce("今日礼物已放入背包！")} aria-label="每日礼物">礼物</button></header>
     <section className="map-actions" aria-label="地图活动"><button onClick={() => announce("每日任务：完成 3 次水果消除") }><span>每日任务</span><b>3</b></button><button onClick={() => announce("果园宝箱将在通关后开启") }><span>果园宝箱</span><b>★</b></button><button onClick={() => announce("活动：云海寻宝已开启") }><span>活动</span><b>!</b></button></section>
     <section className="map-levels" aria-label="20 个关卡">{LEVELS.map((item, index) => <button key={item.id} className={`map-level ${item.id <= unlocked ? "unlocked" : "locked"} ${bestScores[item.id] ? "finished" : ""}`} disabled={item.id > unlocked} onClick={() => onOpenLevel(index)}><span>{item.id}</span><i aria-hidden="true">{bestScores[item.id] ? "★" : item.id <= unlocked ? "●" : "🔒"}</i></button>)}</section>
     {notice && <p className="map-notice" aria-live="polite">{notice}</p>}
     <div className="map-footer"><span>当前已解锁 {unlocked}/20 关</span><button onClick={() => onOpenLevel(Math.max(0, unlocked - 1))}>继续冒险</button></div>
-  </main></MobileScroll>;
+  </main></div>;
 }
 
 function MapScenery() {
