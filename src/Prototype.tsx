@@ -27,6 +27,7 @@ const BOARD_WIDTH_PX = 812;
 const BOARD_HEIGHT_PX = 914;
 const CELL_WIDTH = BOARD_WIDTH_PX / BOARD_SIZE;
 const CELL_HEIGHT = BOARD_HEIGHT_PX / BOARD_SIZE;
+const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
 
 function loadSave(): SavedGame {
   try {
@@ -308,7 +309,7 @@ export default function Prototype() {
   useEffect(() => { setBestScores((value) => score > (value[level.id] || 0) ? { ...value, [level.id]: score } : value); }, [level.id, score]);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js");
+    if ("serviceWorker" in navigator) void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
   }, []);
 
   const targetValues = useMemo(() => ({ strawberry: Math.min(progress.strawberry, level.targets[0].count), foam: Math.min(progress.foam, level.targets[1].count) }), [progress, level]);
@@ -319,28 +320,28 @@ export default function Prototype() {
   return (
     <MobileScroll className="app-screen cloud-scroll">
       <main className="garden-game" aria-label="云海果乐园三消游戏">
-        <img className="scene-background" src="/assets/backgrounds/sky-ocean-clean.png" alt="" />
-        <header className="game-hud" aria-label="当前关卡信息"><button className="hud-back" onClick={() => setView("map")} aria-label="返回关卡地图"><img src="/assets/ui/back-button.png" alt="" /></button><img className="hud-level-card" src="/assets/ui/level-card-empty.png" alt="" /><div className="hud-level-copy"><strong>第 {level.id} 关</strong><span>剩余 {moves} 步</span></div><section className="hud-mission"><img className="hud-mission-card" src="/assets/ui/mission-card-empty.png" alt="" /><img className="hud-mission-ribbon" src="/assets/ui/mission-ribbon.png" alt="" /><b>关卡目标</b><div className="live-targets"><span><img src="/assets/tiles/foam.png" alt="" />{targetValues.foam}/{level.targets[1].count}</span><span><img src="/assets/tiles/strawberry.png" alt="" />{targetValues.strawberry}/{level.targets[0].count}</span></div></section><img className="hud-whale" src="/assets/ui/whale-bubble.png" alt="云海小鲸鱼" /></header>
+        <img className="scene-background" src={`${ASSET_BASE}backgrounds/sky-ocean-clean.png`} alt="" />
+        <header className="game-hud" aria-label="当前关卡信息"><button className="hud-back" onClick={() => setView("map")} aria-label="返回关卡地图"><img src={`${ASSET_BASE}ui/back-button.png`} alt="" /></button><img className="hud-level-card" src={`${ASSET_BASE}ui/level-card-empty.png`} alt="" /><div className="hud-level-copy"><strong>第 {level.id} 关</strong><span>剩余 {moves} 步</span></div><section className="hud-mission"><img className="hud-mission-card" src={`${ASSET_BASE}ui/mission-card-empty.png`} alt="" /><img className="hud-mission-ribbon" src={`${ASSET_BASE}ui/mission-ribbon.png`} alt="" /><b>关卡目标</b><div className="live-targets"><span><img src={`${ASSET_BASE}tiles/foam.png`} alt="" />{targetValues.foam}/{level.targets[1].count}</span><span><img src={`${ASSET_BASE}tiles/strawberry.png`} alt="" />{targetValues.strawberry}/{level.targets[0].count}</span></div></section><img className="hud-whale" src={`${ASSET_BASE}ui/whale-bubble.png`} alt="云海小鲸鱼" /></header>
         <p className="game-message" aria-live="polite">{message}</p>
-        {progress.foam < level.targets[1].count && <div className="foam-tip" role="note"><img src="/assets/tiles/foam.png" alt="" /><span>在云朵旁边消除水果，或用特效扫到云朵，就能削掉一层；数字 2 需两次。</span></div>}
+        {progress.foam < level.targets[1].count && <div className="foam-tip" role="note"><img src={`${ASSET_BASE}tiles/foam.png`} alt="" /><span>在云朵旁边消除水果，或用特效扫到云朵，就能削掉一层；数字 2 需两次。</span></div>}
         {booster && <div className="booster-hint" aria-live="polite">{booster === "hammer" ? "小锤已选中：点任意水果或泡沫" : booster === "flower" ? "彩虹花已选中：点一种水果全屏清除" : "交换已选中：先点一个水果"}</div>}
         <section className="board-frame" aria-label="水果消除棋盘">
           <div className={`game-board ${busy ? "is-busy" : ""}`} onPointerDown={onBoardPointerDown} onPointerUp={onBoardPointerUp} onPointerCancel={onBoardPointerCancel}>
             {board.flatMap((row, rowIndex) => row.map((tile, colIndex) => {
               const pos = { row: rowIndex, col: colIndex };
               return <button key={tile.id} className={`tile ${clearing.has(key(pos)) ? "is-clearing" : ""} ${selected && samePos(selected, pos) ? "is-selected" : ""} ${dragging && samePos(dragging, pos) ? "is-dragging" : ""} ${tile.special ? `special-${tile.special}` : ""}`} disabled={busy} tabIndex={-1} aria-label={`${FRUIT_LABEL[tile.fruit]}，第 ${rowIndex + 1} 行第 ${colIndex + 1} 列`}>
-                <img src={`/assets/tiles/${tile.special === "flower" ? "rainbow-flower" : tile.fruit === "grape" ? "grape-cluster" : tile.fruit === "apple" ? "red-apple" : tile.fruit}.png`} alt="" />
-                {tile.foamLayers && <span className={`cloud-layer cloud-layer-${tile.foamLayers}`} aria-label={`云朵障碍，还需要 ${tile.foamLayers} 次消除`}><img src="/assets/tiles/foam.png" alt="" /><em>{tile.foamLayers > 1 ? tile.foamLayers : ""}</em></span>}
+                <img src={`${ASSET_BASE}tiles/${tile.special === "flower" ? "rainbow-flower" : tile.fruit === "grape" ? "grape-cluster" : tile.fruit === "apple" ? "red-apple" : tile.fruit}.png`} alt="" />
+                {tile.foamLayers && <span className={`cloud-layer cloud-layer-${tile.foamLayers}`} aria-label={`云朵障碍，还需要 ${tile.foamLayers} 次消除`}><img src={`${ASSET_BASE}tiles/foam.png`} alt="" /><em>{tile.foamLayers > 1 ? tile.foamLayers : ""}</em></span>}
               </button>;
             }))}
           </div>
         </section>
-        <section className="ocean-friends" aria-hidden="true"><img className="friend-turtle" src="/assets/ui/turtle-island.png" alt="" /><img className="friend-jelly" src="/assets/ui/jellyfish.png" alt="" /><img className="friend-seahorse" src="/assets/ui/seahorse-island.png" alt="" /></section>
+        <section className="ocean-friends" aria-hidden="true"><img className="friend-turtle" src={`${ASSET_BASE}ui/turtle-island.png`} alt="" /><img className="friend-jelly" src={`${ASSET_BASE}ui/jellyfish.png`} alt="" /><img className="friend-seahorse" src={`${ASSET_BASE}ui/seahorse-island.png`} alt="" /></section>
         <footer className="booster-dock">
           <Booster label="小锤敲击" asset="ui/booster-hammer" count={boosters.hammer} active={booster === "hammer"} onClick={() => setBooster(booster === "hammer" ? null : "hammer")} />
           <Booster label="彩虹花" asset="ui/booster-wand" count={boosters.flower} active={booster === "flower"} onClick={() => setBooster(booster === "flower" ? null : "flower")} />
           <Booster label="换一换" asset="ui/booster-swap" count={boosters.swap} active={booster === "swap"} onClick={() => setBooster(booster === "swap" ? null : "swap")} />
-          <button className="pause-button" onClick={() => setShowPause(true)} aria-label="暂停游戏"><img src="/assets/ui/pause-button.png" alt="" /></button>
+          <button className="pause-button" onClick={() => setShowPause(true)} aria-label="暂停游戏"><img src={`${ASSET_BASE}ui/pause-button.png`} alt="" /></button>
         </footer>
         {showPause && <Modal title="云海暂歇" onClose={() => setShowPause(false)}><p>第 {level.id} 关进行中，已经获得 {score} 分。</p><button onClick={() => { audioEnabled.current = !audioEnabled.current; setMessage(audioEnabled.current ? "声音已开启" : "声音已关闭"); }}>切换声音</button><button onClick={() => { setShowPause(false); resetLevel(); }}>重新开始</button><button onClick={() => { setShowPause(false); setView("map"); }}>返回关卡地图</button></Modal>}
         {showResult && <Result kind={showResult} stars={stars} score={score} onRetry={() => resetLevel()} onNext={() => { if (levelIndex < LEVELS.length - 1) setLevelIndex((value) => value + 1); else { setShowResult(null); setView("map"); } }} />}
@@ -364,20 +365,20 @@ function LevelMap({ unlocked, bestScores, onOpenLevel }: { unlocked: number; bes
 
 function MapScenery() {
   return <div className="map-scenery" aria-hidden="true">
-    <img className="map-path-art" src="/assets/map/golden-path.png" alt="" />
-    <img className="map-orchard map-orchard-apple-a" src="/assets/map/orchard-apple.png" alt="" />
-    <img className="map-orchard map-orchard-blueberry-a" src="/assets/map/orchard-blueberry.png" alt="" />
-    <img className="map-orchard map-orchard-apple-b" src="/assets/map/orchard-apple.png" alt="" />
-    <img className="map-orchard map-orchard-blueberry-b" src="/assets/map/orchard-blueberry.png" alt="" />
-    <img className="map-whale" src="/assets/ui/whale-bubble.png" alt="" />
-    <img className="map-turtle" src="/assets/ui/turtle-island.png" alt="" />
-    <img className="map-seahorse" src="/assets/ui/seahorse-island.png" alt="" />
-    <img className="map-flower map-flower-a" src="/assets/tiles/rainbow-flower.png" alt="" />
-    <img className="map-flower map-flower-b" src="/assets/tiles/rainbow-flower.png" alt="" />
+    <img className="map-path-art" src={`${ASSET_BASE}map/golden-path.png`} alt="" />
+    <img className="map-orchard map-orchard-apple-a" src={`${ASSET_BASE}map/orchard-apple.png`} alt="" />
+    <img className="map-orchard map-orchard-blueberry-a" src={`${ASSET_BASE}map/orchard-blueberry.png`} alt="" />
+    <img className="map-orchard map-orchard-apple-b" src={`${ASSET_BASE}map/orchard-apple.png`} alt="" />
+    <img className="map-orchard map-orchard-blueberry-b" src={`${ASSET_BASE}map/orchard-blueberry.png`} alt="" />
+    <img className="map-whale" src={`${ASSET_BASE}ui/whale-bubble.png`} alt="" />
+    <img className="map-turtle" src={`${ASSET_BASE}ui/turtle-island.png`} alt="" />
+    <img className="map-seahorse" src={`${ASSET_BASE}ui/seahorse-island.png`} alt="" />
+    <img className="map-flower map-flower-a" src={`${ASSET_BASE}tiles/rainbow-flower.png`} alt="" />
+    <img className="map-flower map-flower-b" src={`${ASSET_BASE}tiles/rainbow-flower.png`} alt="" />
   </div>;
 }
 
-function Goal({ icon, value, total }: { icon: "strawberry" | "foam"; value: number; total: number }) { return <div className="goal"><img src={`/assets/tiles/${icon === "foam" ? "foam" : icon}.png`} alt="" /><b>{value}/{total}</b></div>; }
-function Booster({ label, asset, count, active, onClick }: { label: string; asset: string; count: number; active: boolean; onClick: () => void }) { return <button className={`booster ${active ? "is-active" : ""}`} onClick={onClick} aria-pressed={active}><span><img src={`/assets/${asset}.png`} alt="" /><b>{count}</b></span><small>{label}</small></button>; }
+function Goal({ icon, value, total }: { icon: "strawberry" | "foam"; value: number; total: number }) { return <div className="goal"><img src={`${ASSET_BASE}tiles/${icon === "foam" ? "foam" : icon}.png`} alt="" /><b>{value}/{total}</b></div>; }
+function Booster({ label, asset, count, active, onClick }: { label: string; asset: string; count: number; active: boolean; onClick: () => void }) { return <button className={`booster ${active ? "is-active" : ""}`} onClick={onClick} aria-pressed={active}><span><img src={`${ASSET_BASE}${asset}.png`} alt="" /><b>{count}</b></span><small>{label}</small></button>; }
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) { return <div className="modal-backdrop" role="presentation"><section className="modal-card" role="dialog" aria-modal="true" aria-label={title}><h2>{title}</h2>{children}<button className="modal-close" onClick={onClose}>继续冒险</button></section></div>; }
 function Result({ kind, stars, score, onRetry, onNext }: { kind: "win" | "lose"; stars: number; score: number; onRetry: () => void; onNext: () => void }) { const won = kind === "win"; return <div className="modal-backdrop"><section className="result-card" role="dialog" aria-modal="true" aria-label={won ? "挑战成功" : "差一点就成功了"}><div className="result-bubble">{won ? "云海闪亮！" : "再试一次"}</div><h2>{won ? "挑战成功" : "差一点就成功了"}</h2><p className="result-stars">{"★".repeat(stars)}{"☆".repeat(3 - stars)}</p><p>本关得分 {score.toLocaleString()}</p><div><button onClick={onRetry}>重新挑战</button>{won && <button onClick={onNext}>下一关</button>}</div></section></div>; }

@@ -12,6 +12,7 @@
     "dev": "vite",
     "prebuild": "npm run check:runtime",
     "build": "tsc && vite build && node scripts/prepare-sites-build.mjs"
+    ,"build:github-pages": "tsc && vite build"
   },
   "dependencies": {
     "@fontsource/roboto": "5.2.10",
