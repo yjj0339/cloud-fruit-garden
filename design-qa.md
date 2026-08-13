@@ -22,3 +22,13 @@
 - The map path art is decorative and does not join every level node with pixel-perfect center alignment.
 
 final result: passed
+
+## 2026-08-13 interaction polish pass
+
+- Compared the updated 390 x 844 gameplay capture against the supplied gameplay reference at the same game state.
+- P1 resolved: top-left level card, center mission card, and right character now occupy separate slots with larger target icons and no overlap.
+- P1 resolved: swaps now travel before state commit and invalid swaps reverse on the same path.
+- P1 resolved: clear feedback now includes anticipation, image-fragment burst, synchronized score/haptic timing, staggered fall, and chain feedback.
+- P1 resolved: rule engine now distinguishes normal three matches, row/column four matches, L/T area bursts, and straight five color-clears.
+- P2 resolved: special row, column, and area-burst tiles use individual generated raster overlays instead of unmarked fruit art.
+- Remaining P3: animation timing is intentionally original and not a frame-for-frame copy of another commercial game's protected presentation.

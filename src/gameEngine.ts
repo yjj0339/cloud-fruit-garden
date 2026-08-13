@@ -1,7 +1,9 @@
 export type Fruit = "blueberry" | "strawberry" | "peach" | "grape" | "lemon" | "apple";
-export type Special = "row" | "column" | "flower";
+export type Special = "row" | "column" | "burst" | "flower";
 export type Tile = { id: number; fruit: Fruit; special?: Special; foamLayers?: number };
 export type Pos = { row: number; col: number };
+export type SpecialSpawn = { pos: Pos; special: Special };
+export type MatchPlan = { clear: Set<string>; spawns: SpecialSpawn[] };
 
 export const BOARD_SIZE = 8;
 export const FRUITS: Fruit[] = ["blueberry", "strawberry", "peach", "grape", "lemon", "apple"];
@@ -51,6 +53,41 @@ export function findMatches(board: Tile[][]): Pos[][] {
     }
   }
   return groups;
+}
+
+function groupContains(group: Pos[], pos: Pos): boolean {
+  return group.some((item) => item.row === pos.row && item.col === pos.col);
+}
+
+function preferredOrigin(group: Pos[], preferred?: Pos): Pos {
+  return preferred && groupContains(group, preferred) ? preferred : group[Math.floor(group.length / 2)];
+}
+
+/**
+ * Converts straight-line matches into the familiar match-three special tiers:
+ * 3 = clear, 4 = line clear, intersecting L/T = area burst, 5+ straight = color clear.
+ */
+export function planMatches(board: Tile[][], preferred?: Pos): MatchPlan {
+  const groups = findMatches(board);
+  const clear = new Set(groups.flat().map(key));
+  const spawns = new Map<string, SpecialSpawn>();
+
+  const horizontal = groups.filter((group) => group.length > 1 && group[0].row === group[1].row);
+  const vertical = groups.filter((group) => group.length > 1 && group[0].col === group[1].col);
+  const intersections: Pos[] = [];
+  horizontal.forEach((rowGroup) => vertical.forEach((columnGroup) => {
+    rowGroup.forEach((pos) => { if (groupContains(columnGroup, pos)) intersections.push(pos); });
+  }));
+  intersections.forEach((pos) => spawns.set(key(pos), { pos, special: "burst" }));
+
+  groups.forEach((group) => {
+    const origin = preferredOrigin(group, preferred);
+    if (group.length >= 5) spawns.set(key(origin), { pos: origin, special: "flower" });
+    else if (group.length === 4 && !intersections.some((pos) => groupContains(group, pos))) {
+      spawns.set(key(origin), { pos: origin, special: group[0].row === group[1].row ? "row" : "column" });
+    }
+  });
+  return { clear, spawns: [...spawns.values()] };
 }
 
 export function swapTiles(board: Tile[][], a: Pos, b: Pos): Tile[][] {

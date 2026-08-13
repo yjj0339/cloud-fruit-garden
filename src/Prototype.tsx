@@ -11,6 +11,7 @@ import {
   isAdjacent,
   key,
   makeTile,
+  planMatches,
   reshuffleBoard,
   samePos,
   swapTiles,
@@ -21,6 +22,8 @@ import {
 } from "./gameEngine";
 
 type SavedGame = { unlocked: number; boosters: { hammer: number; flower: number; swap: number }; best: Record<number, number> };
+type SwapMotion = { a: Pos; b: Pos; returning?: boolean };
+type SpecialMoment = { key: string; special: Special } | null;
 
 const FRUIT_LABEL: Record<Fruit, string> = {
   blueberry: "蓝莓", strawberry: "草莓", peach: "蜜桃", grape: "葡萄", lemon: "柠檬", apple: "苹果",
@@ -60,13 +63,18 @@ function cloudNeighbors(board: Tile[][], target: Set<string>) {
   return hits;
 }
 
-function addSpecialEffect(board: Tile[][], pos: Pos, target: Set<string>) {
+function addSpecialEffect(board: Tile[][], pos: Pos, target: Set<string>, colorFruit?: Fruit) {
   const tile = board[pos.row][pos.col];
   if (!tile.special) return;
   if (tile.special === "row") for (let col = 0; col < BOARD_SIZE; col += 1) target.add(key({ row: pos.row, col }));
   if (tile.special === "column") for (let row = 0; row < BOARD_SIZE; row += 1) target.add(key({ row, col: pos.col }));
+  if (tile.special === "burst") {
+    for (let row = pos.row - 1; row <= pos.row + 1; row += 1) for (let col = pos.col - 1; col <= pos.col + 1; col += 1) {
+      if (inside({ row, col })) target.add(key({ row, col }));
+    }
+  }
   if (tile.special === "flower") {
-    const chosen = tile.fruit;
+    const chosen = colorFruit ?? tile.fruit;
     for (let row = 0; row < BOARD_SIZE; row += 1) for (let col = 0; col < BOARD_SIZE; col += 1) {
       if (board[row][col].fruit === chosen) target.add(key({ row, col }));
     }
@@ -110,6 +118,8 @@ export default function Prototype() {
   const [dragging, setDragging] = useState<Pos | null>(null);
   const [dragVector, setDragVector] = useState({ x: 0, y: 0 });
   const [clearing, setClearing] = useState<Set<string>>(() => new Set());
+  const [swapMotion, setSwapMotion] = useState<SwapMotion | null>(null);
+  const [specialMoment, setSpecialMoment] = useState<SpecialMoment>(null);
   const [phase, setPhase] = useState<"idle" | "swap" | "clear" | "fall" | "shuffle">("idle");
   const [chainDisplay, setChainDisplay] = useState(0);
   const [shakeBoard, setShakeBoard] = useState(false);
@@ -121,7 +131,7 @@ export default function Prototype() {
   const resetLevel = useCallback((nextIndex = levelIndex) => {
     const next = LEVELS[nextIndex];
     setBoard(createPlayableBoard(next.targets[1].count, next.id)); setMoves(next.moves); setScore(0); setSelected(null); setBusy(false); setBooster(null);
-    setProgress({ strawberry: 0, foam: 0 }); setMessage("滑动相邻水果，完成三连消除"); setShowResult(null); setPhase("idle"); setChainDisplay(0);
+    setProgress({ strawberry: 0, foam: 0 }); setMessage("滑动相邻水果，完成三连消除"); setShowResult(null); setPhase("idle"); setChainDisplay(0); setSwapMotion(null); setSpecialMoment(null);
   }, [levelIndex]);
 
   const openLevel = (index: number) => {
@@ -161,45 +171,41 @@ export default function Prototype() {
     let totalScore = 0;
     let gainedStrawberry = 0; let gainedFoam = 0;
     while (true) {
-      const groups = findMatches(next);
-      if (!groups.length) break;
+      const plan = planMatches(next, preferred);
+      if (!plan.clear.size) break;
       chain += 1;
       setChainDisplay(chain);
-      const toClear = new Set<string>();
-      const specials: { pos: Pos; special: Special }[] = [];
-      groups.forEach((group) => {
-        group.forEach((pos) => toClear.add(key(pos)));
-        const origin = preferred && group.some((pos) => samePos(preferred ?? null, pos)) ? preferred : group[Math.floor(group.length / 2)];
-        if (group.length >= 5) specials.push({ pos: origin, special: "flower" });
-        else if (group.length === 4) specials.push({ pos: origin, special: group[0].row === group[1].row ? "row" : "column" });
-      });
+      const toClear = new Set<string>(plan.clear);
       [...toClear].forEach((value) => { const [row, col] = value.split(":").map(Number); addSpecialEffect(next, { row, col }, toClear); });
       cloudNeighbors(next, toClear).forEach((value) => toClear.add(value));
-      const keep = new Map(specials.map((item) => [key(item.pos), item.special]));
+      const keep = new Map(plan.spawns.map((item) => [key(item.pos), item.special]));
       const cloudDamaged = new Set<string>();
       toClear.forEach((value) => {
         const [row, col] = value.split(":").map(Number); const current = next[row][col];
-        if (keep.has(value)) { next[row][col] = { ...current, special: keep.get(value) }; return; }
         if (current.foamLayers) {
           gainedFoam += 1;
           next[row][col] = current.foamLayers > 1 ? { ...current, foamLayers: current.foamLayers - 1 } : { ...current, foamLayers: undefined };
           cloudDamaged.add(value);
+          keep.delete(value);
           return;
         }
+        if (keep.has(value)) { next[row][col] = { ...current, special: keep.get(value) }; return; }
         if (current.fruit === "strawberry") gainedStrawberry += 1;
       });
       totalScore += toClear.size * 55 * chain;
       const cleared = new Set([...toClear].filter((value) => !keep.has(value) && !cloudDamaged.has(value)));
       setPhase("clear");
       setClearing(cleared);
+      if (plan.spawns.length) setSpecialMoment({ key: key(plan.spawns[0].pos), special: plan.spawns[0].special });
       if (audioEnabled.current) playTone("match");
       pulseHaptic(chain > 1 ? [15, 25, 15] : 18);
-      await new Promise((resolve) => window.setTimeout(resolve, 210));
+      await new Promise((resolve) => window.setTimeout(resolve, 330));
       next = collapseBoard(next, cleared);
       setPhase("fall");
       setBoard(cloneBoard(next));
       setClearing(new Set());
-      await new Promise((resolve) => window.setTimeout(resolve, 230));
+      await new Promise((resolve) => window.setTimeout(resolve, 310));
+      setSpecialMoment(null);
       preferred = undefined;
     }
     if (!hasPossibleMove(next)) {
@@ -223,16 +229,29 @@ export default function Prototype() {
   const swapAndResolve = useCallback(async (a: Pos, b: Pos) => {
     if (busy || !isAdjacent(a, b)) return;
     setBusy(true); setSelected(null); setPhase("swap");
-    let next = swapTiles(board, a, b); setBoard(next);
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    setSwapMotion({ a, b });
+    if (audioEnabled.current) playTone("move");
+    pulseHaptic(10);
+    await new Promise((resolve) => window.setTimeout(resolve, 190));
+    let next = swapTiles(board, a, b);
     const directSpecial = next[a.row][a.col].special || next[b.row][b.col].special;
     if (!directSpecial && !findMatches(next).length) {
-      setMessage("这一步不能形成三连"); setShakeBoard(true); if (audioEnabled.current) playTone("lose");
-      await new Promise((resolve) => window.setTimeout(resolve, 190)); setBoard(board); setShakeBoard(false); setPhase("idle"); setBusy(false); return;
+      setSwapMotion({ a, b, returning: true }); setMessage("这一步不能形成三连"); setShakeBoard(true); if (audioEnabled.current) playTone("lose");
+      await new Promise((resolve) => window.setTimeout(resolve, 190)); setSwapMotion(null); setShakeBoard(false); setPhase("idle"); setBusy(false); return;
     }
-    setMoves((value) => Math.max(0, value - 1)); if (audioEnabled.current) playTone("move");
+    setBoard(next); setSwapMotion(null);
+    setMoves((value) => Math.max(0, value - 1));
     if (directSpecial && !findMatches(next).length) {
-      const target = new Set<string>([key(a), key(b)]); addSpecialEffect(next, a, target); addSpecialEffect(next, b, target);
+      const target = new Set<string>([key(a), key(b)]);
+      const aTile = next[a.row][a.col]; const bTile = next[b.row][b.col];
+      if (aTile.special === "flower" && bTile.special === "flower") {
+        for (let row = 0; row < BOARD_SIZE; row += 1) for (let col = 0; col < BOARD_SIZE; col += 1) target.add(key({ row, col }));
+      } else {
+        addSpecialEffect(next, a, target, aTile.special === "flower" ? bTile.fruit : undefined);
+        addSpecialEffect(next, b, target, bTile.special === "flower" ? aTile.fruit : undefined);
+      }
+      [...target].forEach((value) => { const [row, col] = value.split(":").map(Number); addSpecialEffect(next, { row, col }, target); });
+      cloudNeighbors(next, target).forEach((value) => target.add(value));
       let foamHits = 0; let strawberryHits = 0;
       const cloudDamaged = new Set<string>();
       target.forEach((value) => {
@@ -240,11 +259,13 @@ export default function Prototype() {
         if (tile.foamLayers) { foamHits += 1; next[row][col] = tile.foamLayers > 1 ? { ...tile, foamLayers: tile.foamLayers - 1 } : { ...tile, foamLayers: undefined }; cloudDamaged.add(value); }
         else if (tile.fruit === "strawberry") strawberryHits += 1;
       });
-      setClearing(target);
-      await new Promise((resolve) => window.setTimeout(resolve, 210));
+      setPhase("clear"); setClearing(target); setSpecialMoment({ key: key(b), special: bTile.special || aTile.special || "burst" });
+      if (audioEnabled.current) playTone("match"); pulseHaptic([16, 22, 30]);
+      await new Promise((resolve) => window.setTimeout(resolve, 340));
       const removable = new Set([...target].filter((value) => !cloudDamaged.has(value)));
       next = collapseBoard(next, removable);
-      setScore((value) => value + target.size * 70); setBoard(next); setClearing(new Set());
+      setPhase("fall"); setScore((value) => value + target.size * 70); setBoard(next); setClearing(new Set()); setSpecialMoment(null);
+      await new Promise((resolve) => window.setTimeout(resolve, 280));
       registerProgress(strawberryHits, foamHits);
       setMessage(foamHits ? `魔法特效清除了 ${foamHits} 朵云朵泡沫！` : "魔法特效触发！");
       if (findMatches(next).length) next = await resolveBoard(next);
@@ -265,8 +286,8 @@ export default function Prototype() {
     setBusy(true); setPhase("clear");
     let next = cloneBoard(board);
     if (activeBooster === "swap" && selected) {
-      next = swapTiles(next, selected, pos); setBoard(next); setSelected(null); setMessage("两个水果已换位"); pulseHaptic(20);
-      await new Promise((resolve) => window.setTimeout(resolve, 180));
+      setPhase("swap"); setSwapMotion({ a: selected, b: pos }); setSelected(null); setMessage("两个水果正在换位"); pulseHaptic(20);
+      await new Promise((resolve) => window.setTimeout(resolve, 190)); next = swapTiles(next, selected, pos); setBoard(next); setSwapMotion(null);
       setBoosters((value) => ({ ...value, swap: Math.max(0, value.swap - 1) })); setBooster(null);
       if (findMatches(next).length) next = await resolveBoard(next, pos);
       else if (!hasPossibleMove(next)) { setPhase("shuffle"); next = reshuffleBoard(next); setBoard(next); }
@@ -274,7 +295,7 @@ export default function Prototype() {
     }
     if (activeBooster === "hammer") {
       const target = new Set([key(pos)]); const hitFoam = Boolean(next[pos.row][pos.col].foamLayers); setClearing(target); setMessage(hitFoam ? "小锤正在敲碎一层云朵泡沫…" : "小锤敲击中…"); if (audioEnabled.current) playTone("match");
-      await new Promise((resolve) => window.setTimeout(resolve, 230)); const tile = next[pos.row][pos.col];
+      await new Promise((resolve) => window.setTimeout(resolve, 330)); const tile = next[pos.row][pos.col];
       if (tile.foamLayers) next[pos.row][pos.col] = tile.foamLayers > 1 ? { ...tile, foamLayers: tile.foamLayers - 1 } : { ...tile, foamLayers: undefined };
       else next = collapseBoard(next, target);
       setScore((value) => value + 90); registerProgress(0, hitFoam ? 1 : 0); pulseHaptic(25);
@@ -283,7 +304,7 @@ export default function Prototype() {
       const chosen = next[pos.row][pos.col].fruit; const target = new Set<string>();
       for (let row = 0; row < BOARD_SIZE; row += 1) for (let col = 0; col < BOARD_SIZE; col += 1) if (next[row][col].fruit === chosen) target.add(key({ row, col }));
       setClearing(target); setMessage(`彩虹花正在清除全部${FRUIT_LABEL[chosen]}！`); if (audioEnabled.current) playTone("match");
-      await new Promise((resolve) => window.setTimeout(resolve, 260));
+      await new Promise((resolve) => window.setTimeout(resolve, 360));
       let foamHits = 0; let strawberryHits = 0; const removable = new Set<string>();
       for (let row = 0; row < BOARD_SIZE; row += 1) for (let col = 0; col < BOARD_SIZE; col += 1) if (target.has(key({ row, col }))) {
         const tile = next[row][col]; if (tile.foamLayers) { foamHits += 1; next[row][col] = tile.foamLayers > 1 ? { ...tile, foamLayers: tile.foamLayers - 1 } : { ...tile, foamLayers: undefined }; }
@@ -351,6 +372,13 @@ export default function Prototype() {
   const targetValues = useMemo(() => ({ strawberry: Math.min(progress.strawberry, level.targets[0].count), foam: Math.min(progress.foam, level.targets[1].count) }), [progress, level]);
   const stars = level.stars.filter((threshold) => score >= threshold).length;
 
+  const swapOffset = (pos: Pos) => {
+    if (!swapMotion || swapMotion.returning) return { x: 0, y: 0 };
+    if (samePos(swapMotion.a, pos)) return { x: (swapMotion.b.col - swapMotion.a.col) * 100, y: (swapMotion.b.row - swapMotion.a.row) * 100 };
+    if (samePos(swapMotion.b, pos)) return { x: (swapMotion.a.col - swapMotion.b.col) * 100, y: (swapMotion.a.row - swapMotion.b.row) * 100 };
+    return { x: 0, y: 0 };
+  };
+
   if (view === "map") return <LevelMap unlocked={unlocked} bestScores={bestScores} onOpenLevel={openLevel} />;
 
   return (
@@ -365,9 +393,14 @@ export default function Prototype() {
           <div className={`game-board ${busy ? "is-busy" : ""} ${shakeBoard ? "is-shaking" : ""}`} onPointerDown={onBoardPointerDown} onPointerMove={onBoardPointerMove} onPointerUp={onBoardPointerUp} onPointerCancel={onBoardPointerCancel}>
             {board.flatMap((row, rowIndex) => row.map((tile, colIndex) => {
               const pos = { row: rowIndex, col: colIndex };
-              const style = { "--tile-row": rowIndex, "--tile-col": colIndex, "--drag-x": `${dragging && samePos(dragging, pos) ? dragVector.x : 0}px`, "--drag-y": `${dragging && samePos(dragging, pos) ? dragVector.y : 0}px` } as CSSProperties;
-              return <button key={tile.id} style={style} className={`tile ${clearing.has(key(pos)) ? "is-clearing" : ""} ${selected && samePos(selected, pos) ? "is-selected" : ""} ${dragging && samePos(dragging, pos) ? "is-dragging" : ""} ${tile.special ? `special-${tile.special}` : ""}`} disabled={busy} tabIndex={selected && samePos(selected, pos) ? 0 : rowIndex === 0 && colIndex === 0 ? 0 : -1} aria-label={`${FRUIT_LABEL[tile.fruit]}，第 ${rowIndex + 1} 行第 ${colIndex + 1} 列`}>
-                <img src={`${ASSET_BASE}tiles/${tile.special === "flower" ? "rainbow-flower" : tile.fruit === "grape" ? "grape-cluster" : tile.fruit === "apple" ? "red-apple" : tile.fruit}.png`} alt="" />
+              const moving = swapOffset(pos);
+              const style = { "--tile-row": rowIndex, "--tile-col": colIndex, "--drag-x": `${dragging && samePos(dragging, pos) ? dragVector.x : 0}px`, "--drag-y": `${dragging && samePos(dragging, pos) ? dragVector.y : 0}px`, "--swap-x": `${moving.x}%`, "--swap-y": `${moving.y}%` } as CSSProperties;
+              const asset = tile.special === "flower" ? "rainbow-flower" : tile.fruit === "grape" ? "grape-cluster" : tile.fruit === "apple" ? "red-apple" : tile.fruit;
+              const isClearing = clearing.has(key(pos));
+              return <button key={tile.id} style={style} className={`tile ${isClearing ? "is-clearing" : ""} ${selected && samePos(selected, pos) ? "is-selected" : ""} ${dragging && samePos(dragging, pos) ? "is-dragging" : ""} ${moving.x || moving.y ? "is-swapping" : ""} ${specialMoment?.key === key(pos) ? "is-special-creating" : ""} ${tile.special ? `special-${tile.special}` : ""}`} disabled={busy} tabIndex={selected && samePos(selected, pos) ? 0 : rowIndex === 0 && colIndex === 0 ? 0 : -1} aria-label={`${FRUIT_LABEL[tile.fruit]}，第 ${rowIndex + 1} 行第 ${colIndex + 1} 列${tile.special ? `，${tile.special === "flower" ? "同色清除" : tile.special === "burst" ? "九宫爆炸" : "直线清除"}特效` : ""}`}>
+                <img className="fruit-art" src={`${ASSET_BASE}tiles/${asset}.png`} alt="" />
+                {tile.special && tile.special !== "flower" && <img className={`special-overlay special-overlay-${tile.special}`} src={`${ASSET_BASE}tiles/special-${tile.special}.png`} alt="" />}
+                {isClearing && <span className="clear-fragments" aria-hidden="true">{[0, 1, 2, 3].map((item) => <img key={item} src={`${ASSET_BASE}tiles/${asset}.png`} alt="" />)}</span>}
                 {tile.foamLayers && <span className={`cloud-layer cloud-layer-${tile.foamLayers}`} aria-label={`云朵障碍，还需要 ${tile.foamLayers} 次消除`}><img src={`${ASSET_BASE}tiles/foam.png`} alt="" /><em>{tile.foamLayers > 1 ? tile.foamLayers : ""}</em></span>}
               </button>;
             }))}
