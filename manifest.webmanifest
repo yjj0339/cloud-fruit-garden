@@ -1,0 +1,14 @@
+{
+  "name": "云海果乐园",
+  "short_name": "云海果乐园",
+  "description": "云端海洋主题的原创水果三消游戏",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#dff9ff",
+  "theme_color": "#64d6ee",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "./assets/tiles/rainbow-flower.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
