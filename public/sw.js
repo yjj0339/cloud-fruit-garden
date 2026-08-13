@@ -1,4 +1,4 @@
-const VERSION = "cloud-fruit-garden-v1";
+const VERSION = "cloud-fruit-garden-v3";
 const SHELL = ["./", "./manifest.webmanifest", "./assets/backgrounds/cloud-ocean-bg.png"];
 
 self.addEventListener("install", (event) => {
@@ -11,7 +11,7 @@ self.addEventListener("activate", (event) => {
 });
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  event.respondWith(fetch(event.request).then((response) => {
+  event.respondWith(fetch(event.request, { cache: "no-cache" }).then((response) => {
     if (response.ok && new URL(event.request.url).origin === self.location.origin) caches.open(VERSION).then((cache) => cache.put(event.request, response.clone()));
     return response;
   }).catch(() => caches.match(event.request).then((cached) => cached || caches.match("./"))));
